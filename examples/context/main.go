@@ -106,3 +106,121 @@ func httpServerWithContext() {
 
 // Пример 4: Контекст с отменой
 func contextWithCancel() {
+	fmt.Println("\n=== Контекст с отменой ===")
+	
+	// Создаем контекст с функцией отмены
+	ctx, cancel := context.WithCancel(context.Background())
+	
+	// Запускаем worker
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				fmt.Println("Worker остановлен:", ctx.Err())
+				done <- true
+				return
+			default:
+				// Выполняем работу
+				fmt.Print(".")
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+	}()
+	
+	// Ждем немного, затем отменяем контекст
+	time.Sleep(3 * time.Second)
+	fmt.Println("\nОтменяем контекст...")
+	cancel()
+	
+	// Ждем завершения worker
+	<-done
+}
+
+// Пример 5: Контекст с дедлайном
+func contextWithDeadline() {
+	fmt.Println("\n=== Контекст с дедлайном ===")
+	
+	// Создаем контекст с дедлайном (через 3 секунды)
+	deadline := time.Now().Add(3 * time.Second)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	
+	// Запускаем операцию
+	done := make(chan string)
+	go func() {
+		// Имитируем работу
+		time.Sleep(5 * time.Second)
+		done <- "Работа завершена"
+	}()
+	
+	// Ждем результат или дедлайн
+	select {
+	case result := <-done:
+		fmt.Println("Результат:", result)
+	case <-ctx.Done():
+		fmt.Println("Дедлайн превышен:", ctx.Err())
+	}
+}
+
+// Пример 6: Контекст в цепочке вызовов
+func contextInChain() {
+	fmt.Println("\n=== Контекст в цепочке вызовов ===")
+	
+	// Создаем контекст с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	// Добавляем значения в контекст
+	type key string
+	operationKey := key("operation")
+	ctx = context.WithValue(ctx, operationKey, "data-processing")
+	
+	// Цепочка вызовов
+	result := processData(ctx)
+	fmt.Println("Результат обработки:", result)
+}
+
+func processData(ctx context.Context) string {
+	// Получаем значение из контекста
+	operation := ctx.Value(key("operation")).(string)
+	fmt.Printf("Начинаем операцию: %s\n", operation)
+	
+	// Вызываем следующую функцию в цепочке
+	return fetchAndProcessData(ctx)
+}
+
+func fetchAndProcessData(ctx context.Context) string {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		return "Операция отменена: " + ctx.Err().Error()
+	default:
+	}
+	
+	// Имитируем получение данных
+	fmt.Println("Получаем данные...")
+	time.Sleep(2 * time.Second)
+	
+	// Проверяем контекст снова
+	select {
+	case <-ctx.Done():
+		return "Операция отменена: " + ctx.Err().Error()
+	default:
+	}
+	
+	// Имитируем обработку данных
+	fmt.Println("Обрабатываем данные...")
+	time.Sleep(2 * time.Second)
+	
+	return "Данные успешно обработаны"
+}
+
+func main() {
+	basicContext()
+	contextWithValue()
+	httpServerWithContext()
+	contextWithCancel()
+	contextWithDeadline()
+	contextInChain()
+}
